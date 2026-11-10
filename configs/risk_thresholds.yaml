@@ -1,0 +1,19 @@
+﻿# PM2.5-based AQI breakpoints (ug/m3) -> 4-tier risk category + advisory text
+# DEFAULT VALUES ONLY - to be reviewed/finalized by Module 3.1 (Mahnoor) and 3.3 (Faryal)
+risk_categories:
+  safe:
+    pm25_max: 12.0
+    label: "Safe"
+    advisory: "Air quality is good. No restrictions on outdoor activity."
+  caution:
+    pm25_max: 35.4
+    label: "Caution"
+    advisory: "Sensitive groups should limit prolonged outdoor exertion."
+  unhealthy:
+    pm25_max: 55.4
+    label: "Unhealthy"
+    advisory: "Avoid outdoor activity during peak hours. Wear a mask if going out."
+  hazardous:
+    pm25_max: 999.0
+    label: "Hazardous"
+    advisory: "Stay indoors. Keep windows closed. Avoid all outdoor activity."

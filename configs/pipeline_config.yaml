@@ -1,0 +1,29 @@
+﻿# Shared config referenced across ingestion, training, and serving modules
+
+openaq:
+  base_url: "https://api.openaq.org/v3"
+  rate_limit_per_min: 60
+  rate_limit_per_hour: 2000
+  freshness_threshold_days: 7
+  # Full 18-station allowlist with IDs: see docs/openaq_station_audit.md, Section 5
+
+open_meteo:
+  base_url: "https://api.open-meteo.com/v1/forecast"
+  latitude: 31.5497
+  longitude: 74.3436
+
+data:
+  raw_path: "data/raw"
+  processed_path: "data/processed"
+
+mlflow:
+  experiment_name: "lahore-smog-risk"
+  model_name: "smog-risk-classifier"
+
+model:
+  target_column: "risk_category"
+  classes: ["Safe", "Caution", "Unhealthy", "Hazardous"]
+  min_accuracy_threshold: 0.75
+
+feast:
+  repo_path: "src/feature_store/feature_repo"

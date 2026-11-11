@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+*.pem
+*.key
+secrets.yaml
+
+# Data — DVC-tracked
+data/raw/
+data/processed/
+
+# Models and experiment artifacts
+*.pkl
+*.joblib
+mlruns/
+
+# DVC internals
+.dvc/cache/
+.dvc/tmp/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log

@@ -1,6 +1,6 @@
 # Lahore Smog Risk Index & Safe-Activity Advisory System
 
-MLOps course project. Predicts Lahore smog risk (Safe/Caution/Unhealthy/Hazardous) 6-24 hours ahead and outputs a plain-language safety advisory.
+MLOps course project. For each Lahore monitoring station, predicts smog risk for the **next 15 hours**, split into **three 5-hour windows**. Each window gets one of four categories (Safe / Caution / Unhealthy / Hazardous), and the API returns a plain-language advisory. Not medical advice.
 
 ## Team
 
@@ -8,27 +8,35 @@ MLOps course project. Predicts Lahore smog risk (Safe/Caution/Unhealthy/Hazardou
 - **Fatima**
 - **Faryal**
 
-Full submodule-level breakdown with commit conventions: see `Project_Plan_Lahore_Smog_Risk_Advisory.md`.
-
 ## Project Plan
-See `Project_Plan_Lahore_Smog_Risk_Advisory.md` for full module breakdown, ownership, and commit conventions.
+The single source of truth is the team project plan (v2, Nov 12, 2026): `Project_Plan_Lahore_Smog_Risk_Advisory_updated.md`. It has the module breakdown, owners, commit conventions and technical rules.
 
 ## Setup
-[TODO ]
+[TODO]
 
 ## Environment Variables
 
-This repo includes a file called .env.example - it lists the environment variable names you need, but **not** the real values.
+This repo includes a file called `.env.example`. It lists the environment variable names you need, but **not** the real values.
 
-If you're not familiar with this pattern, here's what to do:
+| Name | Used for |
+|---|---|
+| `OPENAQ_API_KEY` | OpenAQ API |
+| `MLFLOW_TRACKING_URI` | DagsHub MLflow URL |
+| `MLFLOW_TRACKING_USERNAME` | DagsHub username |
+| `MLFLOW_TRACKING_PASSWORD` | DagsHub token (also used for DVC) |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | AWS access |
+| `APP_ENV` | `dev` or `prod` (Docker Compose sets `dev`; ECS sets `prod`) |
 
-1. Copy .env.example into a new file called .env:
-   `powershell
-   Copy-Item .env.example .env
-   `
-2. Open .env and replace the placeholder with the real API key (ask Mahnoor if you don't have it).
-3. **Never edit .env.example with real keys/secrets** - it should only ever contain placeholders like OPENAQ_API_KEY=your_key_here. It's committed to Git on purpose, so anyone cloning the repo knows which variables to set.
-4. **Never commit .env** - it holds your real secret and is already excluded in .gitignore. If git status ever shows .env as a file to be committed, stop and check your .gitignore before proceeding.
+What to do:
+
+1. Copy `.env.example` into a new file called `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   (PowerShell: `Copy-Item .env.example .env`)
+2. Open `.env` and fill in the real values (ask the team if you don't have them).
+3. **Never put real keys/secrets in `.env.example`.** It only lists the names and is committed to Git on purpose, so anyone cloning the repo knows which variables to set.
+4. **Never commit `.env`.** It holds your real secrets and is already excluded in `.gitignore`. If `git status` ever shows `.env` as a file to be committed, stop and check your `.gitignore` before proceeding.
 
 ## How to Run
 [TODO]
@@ -42,3 +50,5 @@ If you're not familiar with this pattern, here's what to do:
 ## Deployment
 [TODO]
 
+## Teardown
+[TODO]

@@ -19,6 +19,19 @@ secrets.yaml
 data/raw/
 data/processed/
 
+# Runtime outputs (written by Airflow tasks) — keep the folders, ignore the files
+data/predictions/*
+!data/predictions/.gitkeep
+data/monitoring/*
+!data/monitoring/.gitkeep
+
+# Feast local registry + SQLite online store
+src/feature_store/feature_repo/data/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+
 # Models and experiment artifacts
 *.pkl
 *.joblib

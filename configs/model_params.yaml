@@ -1,4 +1,15 @@
-﻿# Hyperparameters for both models - Section 1.4: exactly 2 models, no third family
+﻿# Model parameters, tuning grid and quality gate.
+# Exactly 2 models, both wrapped in MultiOutputClassifier (3 outputs x 4 classes):
+#   baseline: MultiOutputClassifier(Pipeline([StandardScaler(), LogisticRegression()]))
+#   main:     MultiOutputClassifier(XGBClassifier())
+
+random_state: 42
+
+# Time-based split (not random): test = last 14 days, 1-day gap before it
+split:
+  test_days: 14
+  gap_days: 1
+
 logistic_regression:
   C: 1.0
   max_iter: 1000
@@ -11,3 +22,17 @@ xgboost:
   subsample: 0.8
   colsample_bytree: 0.8
   eval_metric: mlogloss
+
+# Small grid for tune.py (simple loop; every run logged to MLflow).
+# Values here override the matching xgboost defaults above.
+xgboost_tuning_grid:
+  max_depth: [3, 6]
+  learning_rate: [0.05, 0.1]
+  n_estimators: [100, 300]
+
+# Quality gate (logic lives only in src/models/evaluate.py):
+# promote only if avg macro-F1 of the 3 windows >= min_avg_macro_f1
+# AND it is at least as good as the current @champion.
+# For the failed-gate demo, set this to 0.99 once.
+quality_gate:
+  min_avg_macro_f1: 0.50

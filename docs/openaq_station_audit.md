@@ -11,7 +11,8 @@
 - Total Lahore-area stations found via bounding-box query: **22**
 - Stations reporting live today (Nov 9, 2026): **15**
 - Stations active within last 7 days: **17**
-- Stations stale or dead (excluded from ingestion): **4** (US Diplomatic Post, Assistant Commissioner Office, Johar Town, Gajju Matta)
+- Stations excluded from ingestion: **4** (Lahore Clarity, Johar Town, Asst. Commissioner Allama Iqbal, US Diplomatic Post)
+- Stations on the allowlist: **18** — all report PM1, PM2.5, particle count, temperature and humidity
 - Update frequency: AirGradient network stations update hourly; Clarity station (id 1894641) updates irregularly
 - Note: Original estimate was 7 stations — actual count is 22 because most stations use neighborhood names (e.g. 'Gulberg III', 'Model Town') with no 'Lahore' string in the name field. A coordinate-based bounding-box query was required to find them all.
 
@@ -61,29 +62,29 @@ Status legend: LIVE = updated today | ACTIVE = updated within 2 months | SLOW = 
 - PM10 is dropped from the model's feature set entirely. It is not treated as optional or imputed — it is simply not used.
 - This was chosen over NaN-imputation and over XGBoost's native missingness handling because the feature has no meaningful signal when it's absent for 95% of rows — including it at all would add schema complexity for no real model benefit.
 - PM2.5 is the dominant pollutant in real-world AQI calculations anyway, so removing PM10 does not meaningfully weaken the classifier.
-- The Clarity station (id 1894641) is still included in ingestion for its PM1, PM2.5, and temperature readings — only its PM10 sensor output is ignored.
+- The Clarity station (id 1894641) is **not ingested** (plan v2): it is stale since Aug 31, 2026 and has no humidity or particle-count sensor, so it cannot provide the full feature set.
 
 ---
 
 ## 4. Final Feature Set for the Model
 
-These are the confirmed input features the model will train on, based on what is reliably available across the active station network:
+Station-level measurements used by the model (all 18 allowlisted stations report every "Yes" item below). The full 23-feature list, including Open-Meteo weather, lag/rolling and calendar features, is in `configs/pipeline_config.yaml`.
 
 | Feature | Available at | Used in model | Note |
 |---|---|---|---|
 | PM1 | 21/22 stations | **Yes** | Primary pollutant signal |
 | PM2.5 | 22/22 stations | **Yes** | Primary signal; dominant in AQI calculation |
 | PM10 | 1/22 stations only | **No — excluded** | Only 1 station (Clarity, id 1894641) reports this. Excluded from model to maintain a consistent feature set across all stations. |
-| Relative Humidity | 20/22 stations | **Yes** | From OpenAQ stations directly |
-| Temperature | 22/22 stations | **Yes** | From OpenAQ stations; supplemented by Open-Meteo |
+| Relative Humidity | 20/22 stations | **Yes** | From OpenAQ stations directly (`station_rh`) |
+| Temperature | 22/22 stations | **Yes** | From OpenAQ stations (`station_temp`); Open-Meteo adds city-level weather |
 | Wind speed/direction | Open-Meteo only | **Yes** | Fetched from Open-Meteo for Lahore coordinates |
-| Particle count (um003) | 20/22 stations | Optional | Additional signal if useful during feature engineering; not mandatory |
+| Particle count (um003) | 20/22 stations | **Yes** | Required feature `particle_count_03` |
 
 ---
 
 ## 5. Station Allowlist for Module 1.1
 
-The ingestion script (`ingest_openaq.py`) should pull from the following station IDs only. The 4 excluded stations are listed with reasons.
+The ingestion script (`ingest_openaq.py`) pulls from the 18 "Include" stations only. The allowlist used by code lives in `configs/pipeline_config.yaml` — never hard-code station IDs. A station with no reading in the last 7 days is skipped for that run (warning logged) and used again when it comes back.
 
 | Station | ID | Note |
 |---|---|---|
@@ -104,8 +105,8 @@ The ingestion script (`ingest_openaq.py`) should pull from the following station
 | Forman Christian College | 4757305 | Include |
 | Barki, Lahore | 4515157 | Include |
 | FOOT & MOUTH DISEASE CENTRE | 4527306 | Include |
-| Lahore (Clarity) | 1894641 | Include — PM1/PM2.5/Temp only; ignore PM10 column |
-| Gajju Matta (Kahna) | 4535267 | Borderline — flag in validation if gap > 7 days |
+| Gajju Matta (Kahna) | 4535267 | Include — freshness rule applies |
+| Lahore (Clarity) | 1894641 | EXCLUDE — stale since Aug 2026, no humidity or particle count |
 | Johar Town | 4566427 | EXCLUDE — stale since Jan 2026 |
 | Asst. Commissioner, Allama Iqbal | 4608421 | EXCLUDE — stale since Aug 2025 |
 | US Diplomatic Post | 8664 | EXCLUDE — dead since Mar 2025, PM2.5 only |

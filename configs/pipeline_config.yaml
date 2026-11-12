@@ -1,29 +1,156 @@
-﻿# Shared config referenced across ingestion, training, and serving modules
+﻿# Shared config read by ingestion, features, training, serving and monitoring.
+# Single place for stations, coordinates, backfill date, feature list, windows and paths.
+# Never hard-code any of these values in code.
 
+# ---------------------------------------------------------------------------
+# Time
+# ---------------------------------------------------------------------------
+timezone:
+  storage: "UTC"                 # all timestamps are stored and processed in UTC
+  display: "Asia/Karachi"        # used ONLY when writing advisory text
+
+backfill_start_date: "2025-01-01"   # or the station's first reading, if later
+
+# ---------------------------------------------------------------------------
+# OpenAQ (main source) — API key from env var OPENAQ_API_KEY (X-API-Key header)
+# ---------------------------------------------------------------------------
 openaq:
   base_url: "https://api.openaq.org/v3"
   rate_limit_per_min: 60
   rate_limit_per_hour: 2000
-  freshness_threshold_days: 7
-  # Full 18-station allowlist with IDs: see docs/openaq_station_audit.md, Section 5
+  freshness_threshold_days: 7    # skip a station for this run if no reading in 7 days (log warning)
 
+  # OpenAQ parameter name -> our column name
+  parameters:
+    pm1: "pm1"
+    pm25: "pm25"
+    um003: "particle_count_03"
+    temperature: "station_temp"
+    relativehumidity: "station_rh"
+
+  # 18 allowlisted stations (see docs/openaq_station_audit.md)
+  stations:
+    - {id: 4527035, name: "Civil Secretariat"}
+    - {id: 4527173, name: "Learning Alliance DHA"}
+    - {id: 4527402, name: "HBFC Society, DHA Phase 5"}
+    - {id: 4554729, name: "Sandha Road"}
+    - {id: 4555745, name: "Ravi Road"}
+    - {id: 4557686, name: "Shalimar Town"}
+    - {id: 4565933, name: "IEEE, Punjab University"}
+    - {id: 4568423, name: "Model Town"}
+    - {id: 4605119, name: "College Road"}
+    - {id: 4609353, name: "Kahna Hospital"}
+    - {id: 4618814, name: "Gulberg III"}
+    - {id: 4698865, name: "Cantonment"}
+    - {id: 4699919, name: "Pak Arab"}
+    - {id: 4700982, name: "Samanabad"}
+    - {id: 4757305, name: "Forman Christian College"}
+    - {id: 4515157, name: "Barki, Lahore"}
+    - {id: 4527306, name: "FOOT & MOUTH DISEASE CENTRE"}
+    - {id: 4535267, name: "Gajju Matta (Kahna)"}
+
+  # Do NOT ingest (kept here for reference only)
+  excluded_stations:
+    - {id: 1894641, name: "Lahore (Clarity)", reason: "stale since Aug 2026, no humidity or particle count"}
+    - {id: 4566427, name: "Johar Town", reason: "stale since Jan 2026"}
+    - {id: 4608421, name: "Asst. Commissioner, Allama Iqbal", reason: "dead since Aug 2025"}
+    - {id: 8664, name: "US Diplomatic Post", reason: "dead since Mar 2025, PM2.5 only"}
+
+# ---------------------------------------------------------------------------
+# Open-Meteo (weather) — no API key needed. Credit Open-Meteo (CC BY 4.0) in REPORT.md
+# ---------------------------------------------------------------------------
 open_meteo:
-  base_url: "https://api.open-meteo.com/v1/forecast"
-  latitude: 31.5497
-  longitude: 74.3436
+  historical_url: "https://historical-forecast-api.open-meteo.com/v1/forecast"
+  live_url: "https://api.open-meteo.com/v1/forecast"
+  latitude: 31.5204
+  longitude: 74.3587
+  # The 9 hourly variables requested (observed weather at time t, not forecasts).
+  # wind_direction_10m is converted to wind_dir_sin / wind_dir_cos.
+  # If boundary_layer_height comes back empty for Lahore, remove it here AND from features.
+  hourly_variables:
+    - temperature_2m
+    - relative_humidity_2m
+    - dew_point_2m
+    - precipitation
+    - wind_speed_10m
+    - wind_direction_10m
+    - surface_pressure
+    - cloud_cover
+    - boundary_layer_height
 
-data:
-  raw_path: "data/raw"
-  processed_path: "data/processed"
+# ---------------------------------------------------------------------------
+# Model inputs (23 features) — every module reads this list from here
+# ---------------------------------------------------------------------------
+features:
+  # Station pollutants (OpenAQ)
+  - pm1
+  - pm25
+  - particle_count_03
+  # Station weather (OpenAQ)
+  - station_temp
+  - station_rh
+  # City weather (Open-Meteo)
+  - temperature_2m
+  - relative_humidity_2m
+  - dew_point_2m
+  - precipitation
+  - wind_speed_10m
+  - wind_dir_sin
+  - wind_dir_cos
+  - surface_pressure
+  - cloud_cover
+  - boundary_layer_height
+  # Recent history (past only — never a negative shift)
+  - pm25_lag_1h
+  - pm25_lag_3h
+  - pm25_lag_24h
+  - pm25_roll_mean_3h
+  - pm25_roll_mean_24h
+  # Calendar
+  - hour_of_day
+  - day_of_week
+  - month
 
+# ---------------------------------------------------------------------------
+# Labels — 3 windows, each = category of the average PM2.5 over 5 future hours
+# ---------------------------------------------------------------------------
+labels:
+  source_column: "pm25"
+  min_readings_per_window: 3     # fewer than 3 of 5 readings -> label empty, row dropped
+  windows:
+    - {label: "risk_0_5h",   name: "0-5h",   start_hour: 1,  end_hour: 5}
+    - {label: "risk_5_10h",  name: "5-10h",  start_hour: 6,  end_hour: 10}
+    - {label: "risk_10_15h", name: "10-15h", start_hour: 11, end_hour: 15}
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+  raw_openaq: "data/raw/openaq"
+  raw_weather: "data/raw/weather"
+  features: "data/processed/features.parquet"        # features + labels (dvc prepare stage output)
+  predictions: "data/predictions/predictions.csv"    # hourly batch predictions
+  performance: "data/monitoring/performance.csv"     # live accuracy over time
+
+# ---------------------------------------------------------------------------
+# MLflow (DagsHub hosted) — credentials from env vars only
+# ---------------------------------------------------------------------------
 mlflow:
   experiment_name: "lahore-smog-risk"
-  model_name: "smog-risk-classifier"
+  monitoring_experiment_name: "monitoring"
+  registered_model_name: "lahore-smog-risk"
+  champion_alias: "champion"     # load with models:/lahore-smog-risk@champion
 
-model:
-  target_column: "risk_category"
-  classes: ["Safe", "Caution", "Unhealthy", "Hazardous"]
-  min_accuracy_threshold: 0.75
-
+# ---------------------------------------------------------------------------
+# Feast
+# ---------------------------------------------------------------------------
 feast:
   repo_path: "src/feature_store/feature_repo"
+  entity: "station_id"
+
+# ---------------------------------------------------------------------------
+# Monitoring / retraining decision
+# ---------------------------------------------------------------------------
+monitoring:
+  window_days: 7                 # drift check and live accuracy use the last 7 days
+  weekly_retrain_day: "Sunday"

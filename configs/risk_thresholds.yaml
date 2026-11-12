@@ -1,19 +1,34 @@
-﻿# PM2.5-based AQI breakpoints (ug/m3) -> 4-tier risk category + advisory text
-# DEFAULT VALUES ONLY - to be reviewed/finalized by Module 3.1 (Mahnoor) and 3.3 (Faryal)
-risk_categories:
-  safe:
-    pm25_max: 12.0
-    label: "Safe"
-    advisory: "Air quality is good. No restrictions on outdoor activity."
-  caution:
+﻿# PM2.5 (ug/m3) -> 4 risk classes + advisory text.
+# US EPA 2024 PM2.5 breakpoints, grouped into 4 classes.
+# Note: these are 24-hour breakpoints applied to 5-hour averages (an approximation; stated in REPORT.md).
+#
+# How to classify: truncate the average to 1 decimal place (EPA rule), then pick the class
+# where pm25_min <= value <= pm25_max. Hazardous has no upper limit (pm25_max: null).
+# Labels use PM2.5 only.
+
+classes:
+  - code: 0
+    name: "Safe"                 # EPA Good + Moderate
+    pm25_min: 0.0
     pm25_max: 35.4
-    label: "Caution"
-    advisory: "Sensitive groups should limit prolonged outdoor exertion."
-  unhealthy:
+    advisory: "air quality is acceptable for outdoor activity"
+  - code: 1
+    name: "Caution"              # EPA Unhealthy for Sensitive Groups
+    pm25_min: 35.5
     pm25_max: 55.4
-    label: "Unhealthy"
-    advisory: "Avoid outdoor activity during peak hours. Wear a mask if going out."
-  hazardous:
-    pm25_max: 999.0
-    label: "Hazardous"
-    advisory: "Stay indoors. Keep windows closed. Avoid all outdoor activity."
+    advisory: "sensitive groups should reduce long outdoor activity"
+  - code: 2
+    name: "Unhealthy"            # EPA Unhealthy
+    pm25_min: 55.5
+    pm25_max: 125.4
+    advisory: "limit outdoor activity"
+  - code: 3
+    name: "Hazardous"            # EPA Very Unhealthy + Hazardous
+    pm25_min: 125.5
+    pm25_max: null
+    advisory: "stay indoors"
+
+# Advisory sentence format, per group of neighbouring windows (times in Pakistan time):
+#   "<start>–<end>: <name> — <advisory>."
+# Example: "3–7 PM: Unhealthy — limit outdoor activity."
+disclaimer: "This is not medical advice."

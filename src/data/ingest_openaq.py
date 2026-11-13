@@ -91,3 +91,66 @@ class OpenAQClient:
             resp.raise_for_status()
             return resp.json()
         raise RuntimeError(f"OpenAQ request failed after {retries} attempts: {path}")
+
+
+# ---------------------------------------------------------------------------
+# Fetching
+# ---------------------------------------------------------------------------
+def get_station_info(client, station_id, parameter_map):
+    """Return ({sensor_id: our_column_name}, first_reading_utc) for one station."""
+    result = client.get(f"/locations/{station_id}")["results"][0]
+    sensors = {}
+    for s in result["sensors"]:
+        column = parameter_map.get(s["parameter"]["name"])
+        if column:
+            sensors[s["id"]] = column
+    first = result.get("datetimeFirst") or {}
+    first_utc = parse_utc(first["utc"]) if first.get("utc") else None
+    return sensors, first_utc
+
+
+def fetch_sensor_hours(client, sensor_id, start, end):
+    """All hourly values of one sensor in [start, end] as a list of (timestamp, value)."""
+    rows = []
+    page = 1
+    while True:
+        data = client.get(
+            f"/sensors/{sensor_id}/hours",
+            params={
+                "datetime_from": iso(start),
+                "datetime_to": iso(end),
+                "limit": PAGE_LIMIT,
+                "page": page,
+            },
+        )["results"]
+        for item in data:
+            if item["value"] is not None:
+                rows.append((parse_utc(item["period"]["datetimeFrom"]["utc"]), item["value"]))
+        if len(data) < PAGE_LIMIT:
+            return rows
+        page += 1
+
+
+def fetch_station(client, station, parameter_map, start, end):
+    """Hourly wide DataFrame (one row per hour) for one station."""
+    station_id = station["id"]
+    sensors, first_utc = get_station_info(client, station_id, parameter_map)
+    if first_utc and first_utc > start:
+        start = first_utc  # station started later than the requested start
+    if start >= end:
+        return pd.DataFrame()
+
+    frames = []
+    for sensor_id, column in sensors.items():
+        rows = fetch_sensor_hours(client, sensor_id, start, end)
+        if rows:
+            frames.append(pd.DataFrame(rows, columns=["timestamp", column]).set_index("timestamp"))
+    if not frames:
+        return pd.DataFrame()
+
+    wide = pd.concat(frames, axis=1)  # outer join on timestamp
+    wide = wide[~wide.index.duplicated(keep="last")].sort_index()
+    wide = wide.reindex(columns=list(parameter_map.values()))  # fixed column order, missing sensor = NaN
+    wide.insert(0, "station_id", station_id)
+    wide.index = pd.to_datetime(wide.index, utc=True)
+    return wide.reset_index().rename(columns={"index": "timestamp"})

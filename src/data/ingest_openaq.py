@@ -157,6 +157,27 @@ def fetch_station(client, station, parameter_map, start, end):
 
 
 # ---------------------------------------------------------------------------
+# Saving
+# ---------------------------------------------------------------------------
+def save_raw(df, raw_dir):
+    """Write df into raw_dir/date=YYYY-MM-DD/openaq.parquet, merging with what is there."""
+    if df.empty:
+        return 0
+    df = df.copy()
+    df["_date"] = df["timestamp"].dt.strftime("%Y-%m-%d")
+    for date, part in df.groupby("_date"):
+        part = part.drop(columns="_date")
+        path = Path(raw_dir) / f"date={date}" / "openaq.parquet"
+        if path.exists():
+            part = pd.concat([pd.read_parquet(path), part], ignore_index=True)
+        part = part.drop_duplicates(["station_id", "timestamp"], keep="last")
+        part = part.sort_values(["station_id", "timestamp"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        part.to_parquet(path, index=False)
+    return len(df)
+
+
+# ---------------------------------------------------------------------------
 # Runs
 # ---------------------------------------------------------------------------
 def run(backfill=False, only_station=None):
@@ -185,7 +206,7 @@ def run(backfill=False, only_station=None):
             log.warning("Station %s (%s): no readings in %s .. %s",
                         station["id"], station["name"], iso(start), iso(now))
             continue
-        saved = len(df)
+        saved = save_raw(df, cfg["paths"]["raw_openaq"])  # saved per station, so a crash loses little
         total += saved
         log.info("Station %s (%s): %d hourly rows", station["id"], station["name"], saved)
     log.info("Done. %d rows saved to %s", total, cfg["paths"]["raw_openaq"])

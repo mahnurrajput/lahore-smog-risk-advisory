@@ -154,3 +154,52 @@ def fetch_station(client, station, parameter_map, start, end):
     wide.insert(0, "station_id", station_id)
     wide.index = pd.to_datetime(wide.index, utc=True)
     return wide.reset_index().rename(columns={"index": "timestamp"})
+
+
+# ---------------------------------------------------------------------------
+# Runs
+# ---------------------------------------------------------------------------
+def run(backfill=False, only_station=None):
+    cfg = load_config()
+    oa = cfg["openaq"]
+    client = OpenAQClient(get_api_key(), oa["base_url"], oa["rate_limit_per_min"])
+
+    now = datetime.now(timezone.utc)
+    if backfill:
+        start = parse_utc(cfg["backfill_start_date"] + "T00:00:00Z")
+    else:
+        start = now - timedelta(hours=oa.get("lookback_hours", DEFAULT_LOOKBACK_HOURS))
+
+    stations = oa["stations"]
+    if only_station:
+        stations = [s for s in stations if s["id"] == only_station]
+
+    total = 0
+    for station in stations:
+        try:
+            df = fetch_station(client, station, oa["parameters"], start, now)
+        except Exception as exc:  # one bad station must not stop the others
+            log.error("Station %s (%s) failed: %s", station["id"], station["name"], exc)
+            continue
+        if df.empty:
+            log.warning("Station %s (%s): no readings in %s .. %s",
+                        station["id"], station["name"], iso(start), iso(now))
+            continue
+        saved = len(df)
+        total += saved
+        log.info("Station %s (%s): %d hourly rows", station["id"], station["name"], saved)
+    log.info("Done. %d rows saved to %s", total, cfg["paths"]["raw_openaq"])
+    return total
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Ingest OpenAQ hourly data for the allowlisted stations")
+    parser.add_argument("--backfill", action="store_true", help="download from backfill_start_date")
+    parser.add_argument("--station", type=int, help="only this station id (for testing)")
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    run(backfill=args.backfill, only_station=args.station)
+
+
+if __name__ == "__main__":
+    main()

@@ -130,6 +130,58 @@ def save_raw(df, raw_dir):
 
 
 # ---------------------------------------------------------------------------
+# Merge weather onto station data
+# ---------------------------------------------------------------------------
+def merge_weather_with_stations(weather_dir, openaq_dir, output_dir=None):
+    """Merge weather data onto station rows by UTC hour.
+
+    For each date partition, reads the OpenAQ parquet and the weather parquet,
+    joins on the hour-truncated timestamp, and returns/saves the merged result.
+    """
+    weather_root = Path(weather_dir)
+    openaq_root = Path(openaq_dir)
+
+    weather_parts = sorted(weather_root.glob("date=*/weather.parquet"))
+    if not weather_parts:
+        log.warning("No weather data found in %s", weather_dir)
+        return pd.DataFrame()
+
+    # Load all weather into one frame (it's one city point, not large)
+    weather_frames = [pd.read_parquet(p) for p in weather_parts]
+    weather = pd.concat(weather_frames, ignore_index=True)
+    weather["timestamp"] = pd.to_datetime(weather["timestamp"], utc=True)
+    weather = weather.drop_duplicates("timestamp", keep="last").sort_values("timestamp")
+
+    # Load all station data
+    openaq_parts = sorted(openaq_root.glob("date=*/openaq.parquet"))
+    if not openaq_parts:
+        log.warning("No OpenAQ data found in %s", openaq_dir)
+        return pd.DataFrame()
+
+    station_frames = [pd.read_parquet(p) for p in openaq_parts]
+    stations = pd.concat(station_frames, ignore_index=True)
+    stations["timestamp"] = pd.to_datetime(stations["timestamp"], utc=True)
+    stations = stations.drop_duplicates(["station_id", "timestamp"], keep="last")
+
+    # Merge on hourly timestamp
+    merged = stations.merge(weather, on="timestamp", how="left")
+    log.info(
+        "Merged: %d station rows, %d weather rows -> %d merged rows "
+        "(%d with all weather columns present)",
+        len(stations), len(weather), len(merged),
+        merged.dropna(subset=weather.columns.drop("timestamp").tolist()).shape[0],
+    )
+
+    if output_dir:
+        out = Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        merged.to_parquet(out / "merged.parquet", index=False)
+        log.info("Saved merged data to %s/merged.parquet", output_dir)
+
+    return merged
+
+
+# ---------------------------------------------------------------------------
 # Main run
 # ---------------------------------------------------------------------------
 def run(backfill=False):
@@ -161,6 +213,12 @@ def run(backfill=False):
     # Save raw weather
     saved = save_raw(df, cfg["paths"]["raw_weather"])
     log.info("Saved %d weather rows to %s", saved, cfg["paths"]["raw_weather"])
+
+    # Merge with station data
+    merge_weather_with_stations(
+        cfg["paths"]["raw_weather"],
+        cfg["paths"]["raw_openaq"],
+    )
 
     return saved
 

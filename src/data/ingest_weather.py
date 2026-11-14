@@ -85,6 +85,20 @@ def add_wind_components(df):
     return df
 
 
+def check_boundary_layer_height(df):
+    """Log a warning if boundary_layer_height is entirely empty."""
+    if "boundary_layer_height" in df.columns:
+        non_null = df["boundary_layer_height"].notna().sum()
+        total = len(df)
+        if non_null == 0:
+            log.warning(
+                "boundary_layer_height is empty for all %d rows — "
+                "consider removing it from configs/pipeline_config.yaml", total
+            )
+        else:
+            log.info("boundary_layer_height: %d/%d values present", non_null, total)
+
+
 # ---------------------------------------------------------------------------
 # Chunked fetch (backfill can span > 1 year)
 # ---------------------------------------------------------------------------
@@ -209,6 +223,9 @@ def run(backfill=False):
 
     # Convert wind direction to sin/cos
     df = add_wind_components(df)
+
+    # Check if boundary_layer_height has data
+    check_boundary_layer_height(df)
 
     # Save raw weather
     saved = save_raw(df, cfg["paths"]["raw_weather"])

@@ -15,9 +15,7 @@ env/
 *.key
 secrets.yaml
 
-# Data — DVC-tracked
-data/raw/
-data/processed/
+# Data — data/raw and data/processed are tracked by DVC (DVC writes its own .gitignore entries)
 data/interim/
 
 # Runtime outputs (written by Airflow tasks) — keep the folders, ignore the files
@@ -38,7 +36,8 @@ src/feature_store/feature_repo/data/
 *.joblib
 mlruns/
 
-# DVC internals
+# DVC internals (config.local holds the DagsHub token)
+.dvc/config.local
 .dvc/cache/
 .dvc/tmp/
 

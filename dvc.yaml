@@ -1,0 +1,11 @@
+stages:
+  prepare:
+    cmd: python -m src.features.preprocessing
+    deps:
+      - data/raw
+      - src/features/preprocessing.py
+      - src/features/risk_labeling.py
+      - configs/pipeline_config.yaml
+      - configs/risk_thresholds.yaml
+    outs:
+      - data/processed/features.parquet

@@ -18,6 +18,7 @@ secrets.yaml
 # Data — DVC-tracked
 data/raw/
 data/processed/
+data/interim/
 
 # Runtime outputs (written by Airflow tasks) — keep the folders, ignore the files
 data/predictions/*

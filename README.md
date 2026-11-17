@@ -106,6 +106,52 @@ dvc push                 # DagsHub
 dvc push -r s3           # S3 (once the s3 remote exists)
 ```
 
+## Reproducibility demo
+
+Every Git commit pins one exact data version: `data/raw.dvc` stores the MD5 hash of `data/raw`, and DVC uses that hash to fetch the matching files from the remote. Checking out an old commit and running `dvc checkout` / `dvc pull` gives back the code **and** the data exactly as they were.
+
+The demo uses a Git tag that names a known code + data pair:
+
+| Tag | Commit | `data/raw` hash (from `data/raw.dvc`) | Contents |
+|---|---|---|---|
+| `repro-demo-v1` | `b4ee567` | `d67547b3b2cb879f7ae6204eaf3d3178.dir` | 1,225 files, 12.76 MB: OpenAQ + Open-Meteo backfill from 2025-01-01 |
+
+Before you start, set the DagsHub credentials (see [Data versioning](#data-versioning-dvc)) and commit or stash your local changes. `dvc checkout` replaces the current contents of `data/raw`.
+
+**1. Recover the tagged version:**
+
+```bash
+git fetch --tags
+git checkout repro-demo-v1          # code as it was at the tag (detached HEAD)
+dvc pull data/raw.dvc               # data as it was at the tag
+```
+
+**2. Check that the data matches the pinned version:**
+
+```bash
+dvc status data/raw.dvc             # expected: "Data and pipelines are up to date."
+cat data/raw.dvc                    # md5 must be d67547b3b2cb879f7ae6204eaf3d3178.dir
+```
+
+PowerShell: `Get-Content data/raw.dvc`. Count the files with `find data/raw -type f | wc -l` (PowerShell: `(Get-ChildItem data/raw -Recurse -File).Count`). The result should be 1225.
+
+**3. See that the tagged data differs from the current version** (once `data/raw` has been updated after the tag):
+
+```bash
+git diff repro-demo-v1 main -- data/raw.dvc    # shows the old and new data hashes
+```
+
+**4. Return to the latest version:**
+
+```bash
+git checkout main
+dvc checkout data/raw.dvc           # or dvc pull if the newer data is not in your cache
+```
+
+When the `prepare` stage exists, `dvc repro` after step 1 rebuilds `data/processed/features.parquet` from the recovered data. MLflow runs record the Git commit and the DVC hash, so any logged model can be traced back to the same pair.
+
+Save a screenshot of steps 1 and 2 to `docs/evidence/2.3_reproducibility_demo.png`.
+
 ## Contributing
 
 - `main` is protected and must always be deployable. Develop on `feature/<name>` branches and merge through pull requests.

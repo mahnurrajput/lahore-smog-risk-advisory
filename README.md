@@ -210,7 +210,7 @@ The same steps apply to `dvc.lock`. After resolving it, run `dvc repro` so the l
 
 ### Demo
 
-[`docs/evidence/2.4_dvc_merge_conflict_demo.log`](docs/evidence/2.4_dvc_merge_conflict_demo.log) shows the full simulation:
+[`docs/evidence/2.4_dvc_merge_conflict_demo.txt`](docs/evidence/2.4_dvc_merge_conflict_demo.txt) shows the full simulation:
 
 - Two local branches each add a different file to `data/raw`.
 - A plain Git merge conflicts on `data/raw.dvc`.

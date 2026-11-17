@@ -1,0 +1,87 @@
+
+========== 0. Starting point ==========
+$ git log -1 --oneline
+aa64d31 Merge pull request #10 from mahnurrajput/feature/reproducibility-demo
+$ grep -E md5|nfiles data/raw.dvc
+- md5: d67547b3b2cb879f7ae6204eaf3d3178.dir
+  nfiles: 1225
+  hash: md5
+
+========== 1. Teammate A adds a file to data/raw on branch demo/teammate-a ==========
+$ git checkout -q -b demo/teammate-a
+$ dvc add -q data/raw
+$ git commit -q -m demo: teammate A adds teammate_a.csv data/raw.dvc
+$ grep -E md5|nfiles data/raw.dvc
+- md5: 0ab852370bf0346dccd5fbff86074a3a.dir
+  nfiles: 1226
+  hash: md5
+
+========== 2. Teammate B adds a different file on branch demo/teammate-b (from the same base) ==========
+$ git checkout -q feature/dvc-merge-conflict-demo
+$ dvc checkout -q --force data/raw.dvc
+$ git checkout -q -b demo/teammate-b
+$ dvc add -q data/raw
+$ git commit -q -m demo: teammate B adds teammate_b.csv data/raw.dvc
+$ grep -E md5|nfiles data/raw.dvc
+- md5: 05e4e53c3113f6bc019f87269165dbc1.dir
+  nfiles: 1226
+  hash: md5
+
+========== 3. Merge B into A with plain Git -> conflict in data/raw.dvc ==========
+$ git checkout -q demo/teammate-a
+$ dvc checkout -q --force data/raw.dvc
+$ git merge demo/teammate-b -m demo: merge B into A
+Auto-merging data/raw.dvc
+CONFLICT (content): Merge conflict in data/raw.dvc
+Automatic merge failed; fix conflicts and then commit the result.
+$ cat data/raw.dvc
+outs:
+<<<<<<< HEAD
+- md5: 0ab852370bf0346dccd5fbff86074a3a.dir
+  size: 12757686
+=======
+- md5: 05e4e53c3113f6bc019f87269165dbc1.dir
+  size: 12757685
+>>>>>>> demo/teammate-b
+  nfiles: 1226
+  hash: md5
+  path: raw
+$ git merge --abort
+
+========== 4. Enable the DVC merge driver and merge again ==========
+$ git config merge.dvc.name DVC merge driver
+$ git config merge.dvc.driver dvc git-hook merge-driver --ancestor %O --our %A --their %B
+$ cat .gitattributes
+# Use DVC's merge driver for .dvc files (setup: see "Resolving .dvc merge conflicts" in README)
+*.dvc merge=dvc
+$ git merge --no-edit demo/teammate-b -m demo: merge B into A
+Auto-merging data/raw.dvc
+Merge made by the 'ort' strategy.
+ data/raw.dvc | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+$ cat data/raw.dvc
+outs:
+- md5: 2c0ee9f0b44aa80eebe64c2876ad5d64.dir
+  size: 12757698
+  nfiles: 1227
+  hash: md5
+  path: raw
+$ dvc checkout -q --force data/raw.dvc
+$ ls data/raw/conflict_demo
+teammate_a.csv
+teammate_b.csv
+$ dvc status data/raw.dvc
+Data and pipelines are up to date.
+
+========== 5. Clean up: back to feature/dvc-merge-conflict-demo, delete demo branches, restore data ==========
+$ git checkout -q feature/dvc-merge-conflict-demo
+$ git branch -D demo/teammate-a demo/teammate-b
+Deleted branch demo/teammate-a (was c6aeba5).
+Deleted branch demo/teammate-b (was cb3def7).
+$ dvc checkout -q --force data/raw.dvc
+$ dvc status data/raw.dvc
+Data and pipelines are up to date.
+$ grep -E md5|nfiles data/raw.dvc
+- md5: d67547b3b2cb879f7ae6204eaf3d3178.dir
+  nfiles: 1225
+  hash: md5

@@ -65,6 +65,47 @@ python -m src.data.validate                     # validates the merged dataset
 python -m pytest tests/                         # runs the test suite
 ```
 
+## Data versioning (DVC)
+
+Data is versioned with DVC. Git stores only small pointer files (`data/raw.dvc`, `dvc.lock`); the data itself lives in two remotes: `origin` (DagsHub, default) and `s3` (AWS S3).
+
+`data/raw` is tracked with `dvc add`. `dvc.yaml` has one stage, `prepare`, which turns `data/raw` into `data/processed/features.parquet`.
+
+Set the DagsHub credentials once (stored in `.dvc/config.local`, which is never committed):
+
+```bash
+dvc remote modify --local origin auth basic
+dvc remote modify --local origin user <dagshub-username>
+dvc remote modify --local origin password <dagshub-token>
+```
+
+Get the data for the current commit:
+
+```bash
+git pull
+dvc pull                 # downloads data/raw (and outputs) from DagsHub
+dvc repro                # rebuilds data/processed/features.parquet if inputs changed
+```
+
+Reproduce an older code + data version:
+
+```bash
+git checkout <commit-or-tag>
+dvc checkout             # or: dvc pull  (if the data is not in your local cache)
+dvc repro
+```
+
+After changing the raw data:
+
+```bash
+dvc add data/raw
+dvc repro
+git add data/raw.dvc dvc.lock data/.gitignore data/processed/.gitignore
+git commit -m "chore(data): update raw data version"
+dvc push                 # DagsHub
+dvc push -r s3           # S3 (once the s3 remote exists)
+```
+
 ## Contributing
 
 - `main` is protected and must always be deployable. Develop on `feature/<name>` branches and merge through pull requests.

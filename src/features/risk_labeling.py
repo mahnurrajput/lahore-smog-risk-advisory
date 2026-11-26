@@ -8,6 +8,9 @@ Window labels (risk_0_5h, risk_5_10h, risk_10_15h) = category of the average
 FUTURE PM2.5 in each window. Windows and the minimum number of readings come
 from the `labels` section of configs/pipeline_config.yaml.
 Labels use the future (negative shift) - features never do.
+
+Run from the repo root to print the class balance (after the backfill):
+    python -m src.features.risk_labeling       # reads data/interim/merged.parquet
 """
 
 import math
@@ -18,6 +21,8 @@ import yaml
 
 THRESHOLDS_PATH = Path("configs/risk_thresholds.yaml")
 CONFIG_PATH = Path("configs/pipeline_config.yaml")
+MERGED_PATH = "data/interim/merged.parquet"
+MIN_CLASS_SHARE = 5.0  # % - a class below this is raised at the daily sync before training
 
 
 def load_thresholds(path=THRESHOLDS_PATH):
@@ -78,3 +83,37 @@ def drop_unlabeled(df, label_cfg):
     """Drop rows with any missing label (includes the last 15 hours of each station)."""
     label_cols = [w["label"] for w in label_cfg["windows"]]
     return df.dropna(subset=label_cols).reset_index(drop=True)
+
+
+def class_balance(df, classes, label_cfg):
+    """Table of row count and % per class (rows) for each window (columns)."""
+    codes = [c["code"] for c in classes]
+    table = pd.DataFrame(index=[c["name"] for c in classes])
+    for w in label_cfg["windows"]:
+        counts = df[w["label"]].value_counts().reindex(codes, fill_value=0)
+        table[f"{w['label']} n"] = counts.values
+        table[f"{w['label']} %"] = (100 * counts / counts.sum()).round(1).values
+    return table
+
+
+def main():
+    classes = load_thresholds()
+    label_cfg = load_label_config()
+    df = pd.read_parquet(MERGED_PATH)
+    labelled = drop_unlabeled(add_window_labels(df, classes, label_cfg), label_cfg)
+
+    print(f"Rows: {len(df)} merged -> {len(labelled)} labelled")
+    table = class_balance(labelled, classes, label_cfg)
+    print(table.to_string())
+
+    pct_cols = [col for col in table.columns if col.endswith("%")]
+    low = [(name, col) for col in pct_cols for name in table.index
+           if table.loc[name, col] < MIN_CLASS_SHARE]
+    for name, col in low:
+        print(f"WARNING: {name} is below {MIN_CLASS_SHARE}% in {col[:-2]} - raise at daily sync")
+    if not low:
+        print(f"All classes are at least {MIN_CLASS_SHARE}% in every window.")
+
+
+if __name__ == "__main__":
+    main()

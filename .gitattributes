@@ -1,0 +1,2 @@
+# Use DVC's merge driver for .dvc files (setup: see "Resolving .dvc merge conflicts" in README)
+*.dvc merge=dvc

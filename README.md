@@ -152,6 +152,72 @@ When the `prepare` stage exists, `dvc repro` after step 1 rebuilds `data/process
 
 Save a screenshot of steps 1 and 2 to `docs/evidence/2.3_reproducibility_demo.png`.
 
+## Resolving .dvc merge conflicts
+
+**Why conflicts happen:** `data/raw.dvc` holds a single hash for the whole `data/raw` folder. If two branches both run `dvc add data/raw`, each commits a different hash on the same line. Git then reports a conflict when the branches are merged, even if each branch only added different files:
+
+```
+outs:
+<<<<<<< HEAD
+- md5: 0ab852370bf0346dccd5fbff86074a3a.dir
+  size: 12757686
+=======
+- md5: 05e4e53c3113f6bc019f87269165dbc1.dir
+  size: 12757685
+>>>>>>> demo/teammate-b
+```
+
+Do **not** fix this by hand-editing the hash. Neither hash describes the combined data.
+
+### Option 1: DVC merge driver (normal case)
+
+The repository's `.gitattributes` sends `*.dvc` files to DVC's merge driver. The driver combines the file lists of both versions into one new hash. Each team member runs this once per clone, because Git config is not committed:
+
+```bash
+git config merge.dvc.name "DVC merge driver"
+git config merge.dvc.driver "dvc git-hook merge-driver --ancestor %O --our %A --their %B"
+```
+
+After that, merge as usual and then sync the workspace:
+
+```bash
+git merge <branch>        # data/raw.dvc is merged automatically
+dvc pull                  # or dvc checkout, if both versions are in your local cache
+dvc push                  # upload the merged data version
+```
+
+The driver needs both versions in the local DVC cache. If it reports missing files, run `dvc pull` on each branch first (or `dvc fetch --all-branches`) and merge again.
+
+### Option 2: Manual resolution (when the driver cannot merge)
+
+The driver stops if both branches **changed or deleted the same file**. In that case:
+
+1. Keep one side's `.dvc` file:
+   ```bash
+   git checkout --ours data/raw.dvc      # or --theirs
+   dvc checkout data/raw.dvc
+   ```
+2. Copy the needed files from the other branch into `data/raw`. Alternatively, re-run ingestion so the folder holds the correct combined data.
+3. Re-track the folder and finish the merge:
+   ```bash
+   dvc add data/raw
+   git add data/raw.dvc
+   git commit
+   dvc push
+   ```
+
+The same steps apply to `dvc.lock`. After resolving it, run `dvc repro` so the lock file matches the merged inputs.
+
+### Demo
+
+[`docs/evidence/2.4_dvc_merge_conflict_demo.txt`](docs/evidence/2.4_dvc_merge_conflict_demo.txt) shows the full simulation:
+
+- Two local branches each add a different file to `data/raw`.
+- A plain Git merge conflicts on `data/raw.dvc`.
+- With the merge driver enabled, the same merge succeeds. The result has 1,227 files, containing both teammates' files.
+
+The demo branches were local only and were deleted afterwards. Nothing from them was pushed.
+
 ## Contributing
 
 - `main` is protected and must always be deployable. Develop on `feature/<name>` branches and merge through pull requests.

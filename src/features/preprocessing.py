@@ -3,12 +3,15 @@
 Turns merged station + weather rows into model features:
     - full hourly grid per station (missing hours = empty row, so shift(N) = N hours)
     - lag and rolling PM2.5 features (past and present only)
+    - calendar features (from the UTC timestamp) and wind direction as sin/cos
 
 No-leakage rule: features only use hour t or earlier (positive shifts only).
 All timestamps are UTC.
 """
 
 import pandas as pd
+
+from src.data.ingest_weather import add_wind_components
 
 LAG_HOURS = [1, 3, 24]       # pm25_lag_1h, pm25_lag_3h, pm25_lag_24h
 ROLLING_HOURS = [3, 24]      # pm25_roll_mean_3h, pm25_roll_mean_24h (hours t-N+1 .. t)
@@ -50,4 +53,17 @@ def add_pm25_history(df):
             lambda s, h=h: s.rolling(h, min_periods=h // 2 + 1).mean()
         )
 
+    return df
+
+
+def add_calendar_and_wind(df):
+    """Add hour_of_day, day_of_week (0 = Monday), month (UTC) and wind_dir_sin/cos.
+
+    Wind: converts wind_direction_10m if it is present (ingestion normally does this
+    already, then nothing changes).
+    """
+    df = add_wind_components(df.copy())
+    df["hour_of_day"] = df["timestamp"].dt.hour
+    df["day_of_week"] = df["timestamp"].dt.dayofweek
+    df["month"] = df["timestamp"].dt.month
     return df
